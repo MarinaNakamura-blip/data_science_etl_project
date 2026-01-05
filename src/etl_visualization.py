@@ -17,6 +17,7 @@ transactions["TransactionDate"] = pd.to_datetime(transactions["TransactionDate"]
 #-----------------------------------------------------------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------------------------------------------------------
+# Presentation 1
 transactions_per_day = (transactions.dropna(subset=["TransactionDate"]).groupby(transactions["TransactionDate"].dt.date).size())
 transactions_per_day.index = pd.to_datetime(transactions_per_day.index)
 plt.scatter(transactions_per_day.index, transactions_per_day.values, s=10)
