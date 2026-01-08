@@ -146,43 +146,34 @@ def koks_etl_decorators():
     # - creates the SQLite database if missing
     # - creates required tables if they do not already exist
     @task
-    def create_database() -> None:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    def ensure_tables_exist() -> None:
+        """
+        Ensure required tables exist in the database.
+        Fail early with a clear error if the DB is missing or incorrect.
+        """
 
+        # Connect to the existing SQLite database
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
 
-        # Create Transactions table (one row per transaction)
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS Transactions (
-                TransactionID INTEGER PRIMARY KEY,
-                StoreID INTEGER,
-                CustomerID INTEGER,
-                TransactionDate TEXT,
-                TotalAmount REAL
-            );
-            """
-        )
-
-        # Create TransactionDetails table (one-to-many relationship)
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS TransactionDetails (
-                TransactionDetailID INTEGER PRIMARY KEY,
-                TransactionID INTEGER,
-                ProductID INTEGER,
-                CampaignID INTEGER,
-                Quantity INTEGER,
-                TotalPrice REAL,
-                PriceAtPurchase REAL,
-                FOREIGN KEY(TransactionID) REFERENCES Transactions(TransactionID)
-            );
-            """
-        )
-
-        con.commit()
+        # Check whether the required tables exist
+        cur.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table'
+            AND name IN ('Transactions', 'TransactionDetails');
+        """)
+        existing_tables = {row[0] for row in cur.fetchall()}
         con.close()
+
+        # If any required table is missing, stop the DAG with a clear error
+        required_tables = {"Transactions", "TransactionDetails"}
+        missing_tables = required_tables - existing_tables
+
+        if missing_tables:
+            raise ValueError(
+                f"Missing required tables in database: {missing_tables}. "
+                "Please provide the correct database file."
+            )
 
 
     # ----------------------------
@@ -273,7 +264,7 @@ def koks_etl_decorators():
     # Instantiate tasks
     t1 = download_csv()
     t2 = normalize_data()
-    t3 = create_database()
+    t3 = ensure_tables_exist()
     t4 = filter_new_transactions()
     t5 = load_to_database()
 
